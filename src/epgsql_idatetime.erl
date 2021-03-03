@@ -28,10 +28,14 @@ decode(interval, <<N:?int64, D:?int32, M:?int32>>) -> {i2time(N), D, M}.
 encode(date, D)         -> <<(date2j(D) - ?POSTGRES_EPOC_JDATE):?int32>>;
 encode(time, T)         -> <<(time2i(T)):?int64>>;
 encode(timetz, {T, TZ}) -> <<(time2i(T)):?int64, TZ:?int32>>;
-encode(timestamp, TS = {_, _, _})   -> <<(now2i(TS)):?int64>>;
-encode(timestamp, TS)   -> <<(timestamp2i(TS)):?int64>>;
-encode(timestamptz, TS = {_, _, _})   -> <<(now2i(TS)):?int64>>;
-encode(timestamptz, TS) -> <<(timestamp2i(TS)):?int64>>;
+encode(timestamp, TS = {_, _, _})         -> <<(now2i(TS)):?int64>>;
+encode(timestamp, TS = {_, _})            -> <<(timestamp2i(TS)):?int64>>;
+encode(timestamp, TS) when is_binary(TS)  -> <<(rfc2i(TS)):?int64>>;
+encode(timestamp, TS) when is_integer(TS) -> <<(epoc2i(TS)):?int64>>;
+encode(timestamptz, TS = {_, _, _})         -> <<(now2i(TS)):?int64>>;
+encode(timestamptz, TS = {_, _})            -> <<(timestamp2i(TS)):?int64>>;
+encode(timestamptz, TS) when is_binary(TS)  -> <<(rfc2i(TS)):?int64>>;
+encode(timestamptz, TS) when is_integer(TS) -> <<(epoc2i(TS)):?int64>>;
 encode(interval, {T, D, M}) -> <<(time2i(T)):?int64, D:?int32, M:?int32>>.
 
 %% Julian calendar
@@ -100,6 +104,13 @@ timestamp2i({Date, Time}) ->
 
 now2i({MegaSecs, Secs, MicroSecs}) ->
     (MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs - ?POSTGRES_EPOC_USECS.
+
+rfc2i(Bin) ->
+    EpocTS = calendar:rfc3339_to_system_time(binary_to_list(Bin)),
+    EpocTS * ?USECS_PER_SEC - ?POSTGRES_EPOC_USECS.
+
+epoc2i(EpocTs) ->
+    EpocTs * ?USECS_PER_SEC - ?POSTGRES_EPOC_USECS.
 
 tmodulo(T, U) ->
     case T div U of
